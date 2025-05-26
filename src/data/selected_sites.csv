@@ -1,0 +1,11 @@
+site_code,site_name,overlap_start,overlap_end,overlap_years
+WM0,Westminster - Horseferry Road,2001-07-17 00:00:00,2025-05-26 20:57:09.145815,23.86
+LH0,Hillingdon - Harlington,2007-01-01 00:00:00,2025-05-26 20:57:09.130193,18.4
+BL0,Camden - Bloomsbury,2007-12-01 00:00:00,2025-05-26 20:57:09.130193,17.48
+GN3,Greenwich - Plumstead High Street,2008-01-01 00:00:00,2025-05-26 20:57:09.130193,17.4
+GR9,Greenwich - Westhorne Avenue,2008-01-01 00:00:00,2025-05-26 20:57:09.130193,17.4
+CD1,Camden - Swiss Cottage,2008-02-11 00:00:00,2025-05-26 20:57:09.130193,17.29
+GR4,Greenwich - Eltham,2008-05-10 13:00:00,2025-05-26 20:57:09.130193,17.04
+GN0,Greenwich - A206 Burrage Grove,2008-06-19 00:00:00,2025-05-26 20:57:09.130193,16.93
+TH4,Tower Hamlets - Blackwall,2006-09-10 00:00:00,2023-02-15 00:00:00.000000,16.43
+LW2,Lewisham - New Cross,2012-04-11 12:00:00,2025-04-01 00:00:00.000000,12.97
