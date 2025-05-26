@@ -35,7 +35,7 @@ air-pollution-london/
 
 ## 📊 Data Source
 
-Data is sourced via the [London Air Quality Network (LAQN) API](https://api.erg.ic.ac.uk/AirQuality).
+Data is sourced via the London Air Quality Network (LAQN) API.
 
 Example endpoint:
 https://api.erg.ic.ac.uk/AirQuality/Data/SiteSpecies/SiteCode=MY1/SpeciesCode=NO2/StartDate=2023-01-01/EndDate=2023-01-07/Json
