@@ -1,4 +1,4 @@
 .env
-*.ipynb 
+.Untitled.ipynb 
 .ipynb_checkpoints/ 
 .virtual_documents/ 
