@@ -19,21 +19,7 @@ We focus on modeling two major pollutants:
 
 ---
 
-##  Project Structure
-
-air-pollution-london/
-├── src/ # Core modules
-│ ├── data/ # Stored data files (CSV/Parquet)
-│ └── notebooks/ # Dev notebooks (excluded from Git)
-├── fetch_data.py # Fetches LAQN data in 7-day or full mode
-├── get_valid_sites.py # Extracts sites with valid overlapping pollutant history
-├── .gitignore # Ignore .ipynb, checkpoints, etc.
-└── README.md
-
-
----
-
-## 📊 Data Source
+## Data Source
 
 Data is sourced via the London Air Quality Network (LAQN) API.
 
@@ -43,7 +29,7 @@ https://api.erg.ic.ac.uk/AirQuality/Data/SiteSpecies/SiteCode=MY1/SpeciesCode=NO
 
 ---
 
-## 📌 Goals
+## Goals
 
 - Enable short-term hourly air quality forecasting
 - Combine air quality with traffic and weather data
@@ -51,7 +37,7 @@ https://api.erg.ic.ac.uk/AirQuality/Data/SiteSpecies/SiteCode=MY1/SpeciesCode=NO
 
 ---
 
-## 🛠 Requirements
+## Requirements
 
 - Python 3.9+
 - pandas
