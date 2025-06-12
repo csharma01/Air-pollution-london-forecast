@@ -17,18 +17,6 @@ We focus on modeling two major pollutants:
 -  Forecasting model (coming soon)
 -  Visualization dashboard (planned)
 
----
-
-##  Project Structure
-
-air-pollution-london/
-├── src/ # Core modules
-│ ├── data/ # Stored data files (CSV/Parquet)
-│ └── notebooks/ # Dev notebooks (excluded from Git)
-├── fetch_data.py # Fetches LAQN data in 7-day or full mode
-├── get_valid_sites.py # Extracts sites with valid overlapping pollutant history
-├── .gitignore # Ignore .ipynb, checkpoints, etc.
-└── README.md
 
 
 ---
