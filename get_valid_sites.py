@@ -113,9 +113,11 @@ df_sites[["overlap_start", "overlap_end", "overlap_years"]] = df_sites.apply(cal
 top_sites = df_sites[df_sites["overlap_years"] >= 5].sort_values(by="overlap_years", ascending=False).head(10)
 
 # Step 4: View the result
-top_sites_summary = top_sites[["site_code", "site_name", "overlap_start", "overlap_end", "overlap_years"]]
+top_sites_summary = top_sites[[
+    "site_code", "site_name", "latitude", "longitude",
+    "overlap_start", "overlap_end", "overlap_years"
+]]
 top_sites_summary.reset_index(drop=True, inplace=True)
-top_sites_summary
 
 
 # In[9]:

@@ -1,4 +1,37 @@
+# Ignore Python cache and compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Ignore IDE configuration (e.g. PyCharm, VSCode)
+.idea/
+.vscode/
+
+# Ignore Jupyter notebook checkpoints and temp notebooks
+.ipynb_checkpoints/
+.*/.ipynb_checkpoints/
+*.virtual_documents/
+.*/.virtual_documents/
+
+# Ignore all Parquet and large data files
+*.parquet
+*.feather
+
+# Ignore all data folders except metadata files
+data/raw/
+data/interim/
+data/final/
+!data/matched_sites_laqn_to_dft.csv
+
+# Ignore everything in src/data except selected_sites.csv
+src/data/*
+!src/data/selected_sites.csv
+
+# Ignore environment or runtime files
 .env
-.Untitled.ipynb 
-.ipynb_checkpoints/ 
-.virtual_documents/ 
+*.env
+.DS_Store
+*.log
+
+# Ignore exported or test notebooks in root
+Untitled*.ipynb
