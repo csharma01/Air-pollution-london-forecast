@@ -22,7 +22,7 @@ def main():
     laqn = laqn[["site_code", "site_name", "latitude", "longitude"]].dropna()
 
     # Load DfT traffic site metadata
-    dft = pd.read_csv(cfg.RAW_TRF / "dft_rawcount_region_id_6.csv", low_memory=False)
+    dft = pd.read_csv(cfg.RAW_TRF / "dft_traffic_counts_aadf.csv", low_memory=False)
     dft = dft[["count_point_id", "latitude", "longitude"]].dropna().drop_duplicates("count_point_id")
 
     matches = []
