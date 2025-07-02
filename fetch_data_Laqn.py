@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from pathlib import Path
-from src import config as cfg  # Use config for paths
+from src import config as cfg
 
 # Configuration
 BASE_URL = "https://api.erg.ic.ac.uk/AirQuality"
@@ -103,10 +103,6 @@ def save_data(records):
     df = pd.DataFrame(records)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-    # Filter to business hours: Monday–Friday, 7:00–18:00 UTC
-    df = df[df["timestamp"].dt.dayofweek < 5]
-    df = df[df["timestamp"].dt.hour.between(7, 18)]
-
     if not OUTPUT_PARQUET.exists():
         df.to_parquet(OUTPUT_PARQUET, index=False)
     else:
@@ -114,7 +110,7 @@ def save_data(records):
         updated = pd.concat([existing, df], ignore_index=True)
         updated.to_parquet(OUTPUT_PARQUET, index=False)
 
-    print(f"Saved {len(df)} filtered records to {OUTPUT_PARQUET}")
+    print(f"Saved {len(df)} records to {OUTPUT_PARQUET}")
 
 def main():
     site_df = pd.read_csv(SITE_FILE, parse_dates=["overlap_start", "overlap_end"])
@@ -127,7 +123,7 @@ def main():
                 result = future.result()
                 all_data.extend(result)
                 print(f"Processed site chunk, total records: {len(all_data)}")
-                if len(all_data) % 10000 == 0:
+                if len(all_data) > 50000: # Save in larger chunks to be more efficient
                     save_data(all_data)
                     all_data = []
             except Exception as e:

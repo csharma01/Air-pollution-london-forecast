@@ -4,101 +4,106 @@ import pandas as pd
 import numpy as np
 import holidays
 import re
-from src import config
+from src import config as cfg
 
 
 def clean_col_names(col_name):
-    """Cleans weather column names by removing units and making them lowercase."""
+    """cleans weather column names by removing units and making them lowercase."""
     new_name = re.sub(r'\s*\([^)]*\)', '', col_name)
     new_name = new_name.replace(' ', '_').replace('/', '_')
     return new_name.lower()
 
 
 def run_final_build():
-    """
-    Executes the final data build pipeline using pre-processed files to create
-    the master dataset for modeling.
-    """
-    print("--- Starting Final Data Build Pipeline ---")
 
-    # === STEP 1: LOAD ALL PRE-PROCESSED AND SUPPORTING DATA ===
-    print("\n[1/4] Loading pre-processed and supporting files...")
+    # load datasets
     try:
-        # Load the clean, intermediate files you created
-        aq_df = pd.read_parquet(config.INT_AQ / "laqn_wide.parquet")
-        weather_df = pd.read_parquet(config.INT_WTH / "weather_filtered.parquet")
-
-        # Load the supporting files for mapping and feature data
-        matched_sites_df = pd.read_csv(config.MATCHED_SITES)
-        aadf_df = pd.read_csv(config.RAW_TRF / "dft_traffic_counts_aadf.csv", low_memory=False)
-        print("Source files loaded successfully.")
+        aq_df = pd.read_parquet(cfg.INT_AQ / "laqn_wide.parquet")
+        weather_df = pd.read_parquet(cfg.INT_WTH / "weather_combined_full.parquet")
+        matched_sites_df = pd.read_csv(cfg.MATCHED_SITES)
+        aadf_df = pd.read_csv(cfg.RAW_TRF / "dft_traffic_counts_aadf.csv", low_memory=False)
+        print("source files loaded successfully.")
     except FileNotFoundError as e:
-        print(f"Error: Could not find a source file. Please ensure all preliminary scripts have been run.\n{e}")
+        print(f"critical error: missing source file\n{e}")
         return
 
-    # === STEP 2: PREPARE AND MERGE CORE DATASETS ===
-    print("\n[2/4] Merging Air Quality and pre-filtered Weather data...")
-
-    # Prepare AQ data: standardize column names and data types
+    # prepare and merge data
     aq_df.rename(columns={'timestamp': 'date', 'site_code': 'SiteID', 'no2': 'NO2', 'pm25': 'PM2.5'}, inplace=True)
     aq_df['date'] = pd.to_datetime(aq_df['date'], utc=True)
 
-    # Prepare Weather data: standardize column names and data types
-    # NOTE: Your weather data is already filtered by time, which simplifies this step.
     weather_df.rename(columns={'time': 'date'}, inplace=True)
     weather_df['date'] = pd.to_datetime(weather_df['date'], utc=True)
     weather_df.columns = [clean_col_names(col) for col in weather_df.columns]
     weather_df.rename(columns={'siteid': 'SiteID'}, inplace=True)
 
-    # Merge the two core datasets on both date and site identifier
     df = pd.merge(aq_df, weather_df, on=['date', 'SiteID'], how='inner')
-    print("Core datasets merged.")
+    print("core datasets merged.")
 
-    # === STEP 3: ENGINEER FINAL FEATURES (TRAFFIC & TIME) ===
-    print("\n[3/4] Engineering final features...")
+    # prepare and merge traffic data
+    aadf_agg = aadf_df.groupby(['count_point_id', 'year'])['all_motor_vehicles'].mean().reset_index()
+    traffic_map = matched_sites_df[['site_code', 'nearest_count_point_id']].rename(columns={'site_code': 'SiteID'})
 
-    # Merge the nearest_count_point_id from your mapping file to link to AADF data
-    site_map = matched_sites_df[['site_code', 'nearest_count_point_id']].rename(columns={'site_code': 'SiteID'})
-    df = pd.merge(df, site_map, on='SiteID', how='left')
+    df['year'] = df['date'].dt.year
+    df = pd.merge(df, traffic_map, on='SiteID', how='left')
+    df = pd.merge(df, aadf_agg, left_on=['nearest_count_point_id', 'year'], right_on=['count_point_id', 'year'],
+                  how='left')
+    df.rename(columns={'all_motor_vehicles': 'aadf_vehicle_count'}, inplace=True)
 
-    # Engineer time-based features using London time
-    df.set_index('date', inplace=True)
-    df.index = df.index.tz_convert('Europe/London')
+    df.sort_values(by=['SiteID', 'date'], inplace=True)
 
-    df['hour'] = df.index.hour
-    df['day_of_week'] = df.index.dayofweek
-    df['month'] = df.index.month
-    df['year'] = df.index.year
-    df['is_rush_hour'] = np.where(df['hour'].isin([7, 8, 9, 16, 17, 18]), 1, 0)
-    uk_holidays = holidays.UK(subdiv='ENG', years=df.index.year.unique())
-    df['is_holiday'] = df.index.normalize().isin(uk_holidays).astype(int)
+    # use a two-step fill to handle all missing aadf values
+    df['aadf_vehicle_count'] = df.groupby('SiteID')['aadf_vehicle_count'].ffill().bfill()
+    df['aadf_vehicle_count'].fillna(df['aadf_vehicle_count'].mean(), inplace=True)
 
-    # Prepare and merge the AADF data as a location-based feature
-    aadf_subset = aadf_df[['year', 'count_point_id', 'all_motor_vehicles']].copy()
-    aadf_subset.rename(columns={'all_motor_vehicles': 'aadf_vehicle_count', 'count_point_id': 'nearest_count_point_id'},
-                       inplace=True)
+    # create time-based features
+    df['date'] = pd.to_datetime(df['date']).dt.tz_convert('Europe/London')
+    df['hour'] = df['date'].dt.hour
+    df['day_of_week'] = df['date'].dt.dayofweek
+    df['month'] = df['date'].dt.month
+    df['day_of_year'] = df['date'].dt.dayofyear
 
-    df.reset_index(inplace=True)
-    df = pd.merge(df, aadf_subset, on=['year', 'nearest_count_point_id'], how='left')
-    print("Features engineered and merged.")
+    # create cyclical and categorical features
+    df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24.0)
+    df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24.0)
+    df['month_sin'] = np.sin(2 * np.pi * df['month'] / 12.0)
+    df['month_cos'] = np.cos(2 * np.pi * df['month'] / 12.0)
+    df['dow_sin'] = np.sin(2 * np.pi * df['day_of_week'] / 7.0)
+    df['dow_cos'] = np.cos(2 * np.pi * df['day_of_week'] / 7.0)
+    df['doy_sin'] = np.sin(2 * np.pi * df['day_of_year'] / 365.25)
+    df['doy_cos'] = np.cos(2 * np.pi * df['day_of_year'] / 365.25)
 
-    # === STEP 4: FINALIZE AND SAVE ===
-    print("\n[4/4] Finalizing and saving the master dataset...")
-    # Clean up intermediate columns used for merging
-    df.drop(columns=['nearest_count_point_id'], inplace=True, errors='ignore')
+    df['is_weekend'] = (df['day_of_week'] >= 5).astype(int)
+    is_weekday = ~df['is_weekend'].astype(bool)
+    morning_rush = (df['hour'] >= 7) & (df['hour'] <= 9)
+    evening_rush = (df['hour'] >= 16) & (df['hour'] <= 19)
+    df['is_rush_hour'] = np.where(is_weekday & (morning_rush | evening_rush), 1, 0)
 
-    if df.empty:
-        print("\nError: The final pipeline resulted in an empty dataframe. Please check the merge keys.")
-    else:
-        # Save the final output to the 'final/aq_traffic' directory
-        output_dir = config.FIN_MERGED
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / "model_ready_dataset.parquet"
+    uk_holidays = holidays.UK(subdiv='ENG', years=range(2010, 2026))
+    df['is_holiday'] = df['date'].dt.date.isin(uk_holidays).astype(int)
 
-        df.to_parquet(output_path, index=False)
-        print(f"\nSuccess! The final model-ready dataset has been saved to: {output_path}")
-        print("\nFinal Data Preview:")
-        print(df.head().to_string())
+    # create cyclical and categorical weather features
+    if 'wind_direction_10m' in df.columns:
+        df['wind_dir_sin'] = np.sin(df['wind_direction_10m'] * (np.pi / 180))
+        df['wind_dir_cos'] = np.cos(df['wind_direction_10m'] * (np.pi / 180))
+
+    if 'weather_code' in df.columns:
+        df = pd.get_dummies(df, columns=['weather_code'], prefix='wc', dummy_na=True)
+
+    # finalize dataset by dropping columns
+    cols_to_drop = ['nearest_count_point_id', 'count_point_id', 'wind_direction_10m']
+    df.drop(columns=cols_to_drop, inplace=True, errors='ignore')
+
+    # final validation checks
+    print("validating final dataset...")
+    assert df['aadf_vehicle_count'].isna().sum() == 0, "error: missing traffic data after imputation."
+    assert df.duplicated(subset=['date', 'SiteID']).sum() == 0, "error: duplicate rows found."
+    print("validation checks passed.")
+
+    # save final dataset
+    output_path = cfg.FIN_MERGED / "model_ready_dataset.parquet"
+    df.to_parquet(output_path, index=False)
+    print(f"\nsuccess: final dataset saved to {output_path}")
+    print(f"final shape: {df.shape}")
 
 
 if __name__ == "__main__":

@@ -1,83 +1,72 @@
-# C:\Air pollution london\prepare_weather.py
+# C:\Air pollution london\prepare_weather_data.py
 
 import pandas as pd
+import re
 from src import config as cfg
 
 
-def prepare_weather_data():
-    """
-    Finds all individual weather CSV files, combines them, cleans the data,
-    filters the combined data to the project's specific timeframe, and saves
-    the result as a single, clean Parquet file.
-    """
-    print("--- Starting Full Weather Preparation Script ---")
+def clean_col_names(col_name):
+    """cleans column names by removing units, special characters, and making them lowercase."""
+    new_name = re.sub(r'\s*\([^)]*\)', '', col_name)
+    new_name = new_name.replace(' ', '_').replace('/', '_')
+    return new_name.lower()
 
-    # Define input and output paths from your config
+
+def prepare_full_weather_data():
+
     input_dir = cfg.RAW_WTH
     output_dir = cfg.INT_WTH
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "weather_filtered.parquet"
+    output_path = output_dir / "weather_combined_full.parquet"
 
-    # --- Step 1: Find and Combine all raw weather files ---
     weather_files = list(input_dir.glob("weather_*.csv"))
 
     if not weather_files:
-        print(f"Error: No weather files were found in {input_dir}")
-        print("Please ensure your files are named like 'weather_WM0.csv'.")
+        print(f"error: no weather files were found in {input_dir}")
         return
 
-    print(f"Found {len(weather_files)} weather files to combine.")
+    print(f"found {len(weather_files)} weather files to combine.")
 
     all_weather_dfs = []
     for file_path in weather_files:
         try:
             site_code = file_path.stem.split('_')[1]
-            temp_df = pd.read_csv(file_path, skiprows=3, low_memory=False)
+            temp_df = pd.read_csv(file_path, low_memory=False)
 
-            # Clean numeric columns and remove bad rows (footers)
-            numeric_cols = [col for col in temp_df.columns if
-                            '°C' in col or '(mm)' in col or '(km/h)' in col or '(%)' in col]
-            for col in numeric_cols:
+            # standardize column names immediately after loading
+            temp_df.columns = [clean_col_names(col) for col in temp_df.columns]
+
+            temp_df['siteid'] = site_code
+
+            # convert all columns to numeric except for 'time' and 'siteid'
+            cols_to_convert = [col for col in temp_df.columns if col not in ['time', 'siteid']]
+            for col in cols_to_convert:
                 temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
+
             temp_df.dropna(inplace=True)
 
-            # Add the SiteID column for mapping
-            temp_df['SiteID'] = site_code
             all_weather_dfs.append(temp_df)
+            print(f"successfully processed file: {file_path.name}")
 
         except Exception as e:
-            print(f"An error occurred while processing {file_path.name}: {e}")
+            print(f"an error occurred while processing {file_path.name}: {e}")
 
     if not all_weather_dfs:
-        print("Error: No data was successfully processed from the files.")
+        print("\nerror: no data was successfully processed from the files.")
         return
 
-    print("\nCombining all raw files into a single DataFrame...")
+    print("\ncombining all processed files into a single dataframe...")
     combined_df = pd.concat(all_weather_dfs, ignore_index=True)
-    print(f"Records before filtering: {len(combined_df):,}")
 
-    # --- Step 2: Filter the Combined DataFrame ---
-    print("Applying time-based filters (Mon-Fri, 7-18h, Mar-Oct)...")
+    # convert the 'time' column to a proper timezone-aware datetime object
+    combined_df['time'] = pd.to_datetime(combined_df['time'], utc=True)
 
-    # Convert the 'time' column to a proper datetime object (in London time)
-    # The raw data is ISO format, which pandas reads as an object/string
-    combined_df['time'] = pd.to_datetime(combined_df['time'], utc=True).dt.tz_convert('Europe/London')
+    combined_df.to_parquet(output_path, index=False)
 
-    # Apply filters
-    is_weekday = combined_df['time'].dt.dayofweek.between(0, 4)
-    is_hour = combined_df['time'].dt.hour.between(7, 18)
-    is_month = combined_df['time'].dt.month.between(3, 10)
-
-    filtered_df = combined_df[is_weekday & is_hour & is_month].copy()
-    print(f"Records after filtering: {len(filtered_df):,}")
-
-    # --- Step 3: Save the Final Filtered File ---
-    filtered_df.to_parquet(output_path, index=False)
-
-    print("\nSuccess! The process is complete.")
-    print(f"Filtered weather data has been saved to:\n{output_path}")
-    print(f"\nFinal shape: {filtered_df.shape}")
+    print("\nsuccess! the process is complete.")
+    print(f"full combined weather data has been saved to: {output_path}")
+    print(f"\nfinal shape: {combined_df.shape}")
 
 
 if __name__ == "__main__":
-    prepare_weather_data()
+    prepare_full_weather_data()

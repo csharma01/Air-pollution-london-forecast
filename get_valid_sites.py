@@ -103,16 +103,16 @@ def calculate_overlap(row):
 # In[7]:
 
 
-# Step 1: Get raw site data
+# get raw site data
 df_sites = get_dual_pollutant_sites()
 
-# Step 2: Calculate overlap
+# calculate overlap
 df_sites[["overlap_start", "overlap_end", "overlap_years"]] = df_sites.apply(calculate_overlap, axis=1)
 
-# Step 3: Filter and sort
+# filter and sort
 top_sites = df_sites[df_sites["overlap_years"] >= 5].sort_values(by="overlap_years", ascending=False).head(10)
 
-# Step 4: View the result
+# view the result
 top_sites_summary = top_sites[[
     "site_code", "site_name", "latitude", "longitude",
     "overlap_start", "overlap_end", "overlap_years"
