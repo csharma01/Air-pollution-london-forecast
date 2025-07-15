@@ -1,23 +1,15 @@
 # C:\Air pollution london\prepare_weather_data.py
 
 import pandas as pd
-import re
 from src import config as cfg
 
-
-def clean_col_names(col_name):
-    """cleans column names by removing units, special characters, and making them lowercase."""
-    new_name = re.sub(r'\s*\([^)]*\)', '', col_name)
-    new_name = new_name.replace(' ', '_').replace('/', '_')
-    return new_name.lower()
-
-
 def prepare_full_weather_data():
-
+    
+    # define input and output directories
     input_dir = cfg.RAW_WTH
     output_dir = cfg.INT_WTH
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "weather_combined_full.parquet"
+    output_path = output_dir / "weather_combined_full.csv"
 
     weather_files = list(input_dir.glob("weather_*.csv"))
 
@@ -30,21 +22,11 @@ def prepare_full_weather_data():
     all_weather_dfs = []
     for file_path in weather_files:
         try:
-            site_code = file_path.stem.split('_')[1]
-            temp_df = pd.read_csv(file_path, low_memory=False)
-
-            # standardize column names immediately after loading
-            temp_df.columns = [clean_col_names(col) for col in temp_df.columns]
-
-            temp_df['siteid'] = site_code
-
-            # convert all columns to numeric except for 'time' and 'siteid'
-            cols_to_convert = [col for col in temp_df.columns if col not in ['time', 'siteid']]
-            for col in cols_to_convert:
-                temp_df[col] = pd.to_numeric(temp_df[col], errors='coerce')
-
-            temp_df.dropna(inplace=True)
-
+            # extract site_code from filename
+            site_code = file_path.stem.replace('weather_', '')
+            temp_df = pd.read_csv(file_path, parse_dates=['time'])
+            temp_df['site_code'] = site_code
+            
             all_weather_dfs.append(temp_df)
             print(f"successfully processed file: {file_path.name}")
 
@@ -58,14 +40,16 @@ def prepare_full_weather_data():
     print("\ncombining all processed files into a single dataframe...")
     combined_df = pd.concat(all_weather_dfs, ignore_index=True)
 
-    # convert the 'time' column to a proper timezone-aware datetime object
-    combined_df['time'] = pd.to_datetime(combined_df['time'], utc=True)
+    # ensure the 'time' column is timezone-aware (utc)
+    if combined_df['time'].dt.tz is None:
+        combined_df['time'] = combined_df['time'].dt.tz_localize('UTC')
+    else:
+        combined_df['time'] = combined_df['time'].dt.tz_convert('UTC')
 
-    combined_df.to_parquet(output_path, index=False)
+    combined_df.to_csv(output_path, index=False)
 
-    print("\nsuccess! the process is complete.")
     print(f"full combined weather data has been saved to: {output_path}")
-    print(f"\nfinal shape: {combined_df.shape}")
+    print(f"final shape: {combined_df.shape}")
 
 
 if __name__ == "__main__":
